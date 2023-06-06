@@ -217,29 +217,6 @@ module.exports = {
         'no-unused-expressions': 'off',
         '@typescript-eslint/no-unused-expressions': 'error',
         '@typescript-eslint/consistent-type-imports': 'error',
-        '@typescript-eslint/naming-convention': [
-          'error',
-          {
-            selector: ['variable'],
-            modifiers: ['exported'],
-            format: ['PascalCase'],
-          },
-          {
-            selector: ['variable'],
-            modifiers: ['const', 'global'],
-            types: ['string', 'number'],
-            format: ['UPPER_CASE'],
-          },
-          {
-            selector: ['variable'],
-            types: ['function', 'array'],
-            format: ['camelCase'],
-          },
-          {
-            selector: ['typeLike'],
-            format: ['PascalCase'],
-          },
-        ],
         '@typescript-eslint/no-explicit-any': [
           'error',
           { ignoreRestArgs: true },
