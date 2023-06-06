@@ -15,7 +15,7 @@
     },
     "repository": {
         "type": "git",
-        "url": "https://github.com/terafin/lgtv2mqtt"
+        "url": "https://github.com/googol/lgtv2mqtt"
     },
     "keywords": [
         "mqtt",
@@ -32,9 +32,9 @@
     ],
     "license": "MIT",
     "bugs": {
-        "url": "https://github.com/hobbyquaker/lgtv2mqtt/issues"
+        "url": "https://github.com/googol/lgtv2mqtt/issues"
     },
-    "homepage": "https://github.com/hobbyquaker/lgtv2mqtt",
+    "homepage": "https://github.com/googol/lgtv2mqtt",
     "dependencies": {
         "homeautomation-js-lib": "https://github.com/terafin/homeautomation-js-lib.git",
         "lgtv2": "latest",
