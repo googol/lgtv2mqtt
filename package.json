@@ -35,9 +35,11 @@
     },
     "homepage": "https://github.com/googol/lgtv2mqtt",
     "dependencies": {
+        "@types/node": "^18.16.16",
         "lgtv2": "^1.6.3",
         "lodash": "^4.17.21",
         "mqtt": "^4.3.7",
+        "tslib": "^2.5.3",
         "wol": "^1.0.7"
     },
     "xo": {
