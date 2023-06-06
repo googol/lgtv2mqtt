@@ -1,8 +1,9 @@
 FROM node:18-alpine
 
 COPY package.json package-lock.json ./
-RUN npm install --production
+RUN npm ci
 
 COPY . ./
+RUN npm run build && npm prune --omit dev
 
-CMD ["node", "index.js"]
+CMD ["node", "dist/index.js"]
