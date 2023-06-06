@@ -11,15 +11,15 @@
 
 ### Getting started
 
--   TV configuration
+- TV configuration
 
 You need to allow "LG Connect Apps" on your TV - see http://www.lg.com/uk/support/product-help/CT00008334-1437131798537-others
 
--   Install
+- Install
 
 `npm install -g lgtv2mqtt`
 
--   Start
+- Start
 
 `lgtv2mqtt --help`
 
