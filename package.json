@@ -10,7 +10,7 @@
     },
     "scripts": {
         "start": "node index.js",
-        "test": "camo-purge ; xo"
+        "test": "xo"
     },
     "repository": {
         "type": "git",
@@ -45,7 +45,6 @@
         "space": 4
     },
     "devDependencies": {
-        "camo-purge": "^1.0.2",
         "xo": "^0.54.2"
     }
 }
