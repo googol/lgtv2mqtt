@@ -57,7 +57,7 @@ module.exports = {
     'no-bitwise': 'error',
     'no-caller': 'error',
     'no-case-declarations': 'error',
-    'no-console': 'error',
+    'no-console': 'off',
     'no-constructor-return': 'error',
     'no-continue': 'error',
     'no-empty-static-block': 'error',
