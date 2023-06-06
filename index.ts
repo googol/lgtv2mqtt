@@ -1,5 +1,3 @@
-#!/usr/bin/env node
-
 import Lgtv from 'lgtv2'
 import _ from 'lodash'
 import wol from 'wol'
