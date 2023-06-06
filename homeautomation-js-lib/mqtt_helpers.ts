@@ -1,10 +1,11 @@
 // This file has been inlined from https://github.com/terafin/homeautomation-js-lib/blob/ba1fcb73a8fe5887eb35d61ee4119ad00b12692a/mqtt_helpers.js
 // the package was a dependency previously.
 // The file has been edited to change the logging to be plain console, and to avoid mutating the mqtt import, since that was not used by the project in general
-const mqtt = require('mqtt')
-const _ = require('lodash')
+import * as assert from 'node:assert'
+import mqtt from 'mqtt'
+import _ from 'lodash'
 
-const fix_name = function(str) {
+function fix_name(str: string): string {
     str = str.replace(/[+\\&*%$#,@!’]/g, '')
     str = str.replace(/\s/g, '_').trim()
     str = str.replace(/__/g, '_')
@@ -13,14 +14,17 @@ const fix_name = function(str) {
     return str
 }
 
-exports.setupClient = function(connectedCallback, disconnectedCallback) {
+export function setupClient(connectedCallback: () => void, disconnectedCallback: () => void): mqtt.MqttClient {
     const host = process.env.MQTT_HOST
     const mqttUsername = process.env.MQTT_USER
     const mqttPassword = process.env.MQTT_PASS
     const mqttName = process.env.MQTT_NAME
-    var statusTopicPrefix = process.env.MQTT_STATUS_TOPIC_PREFIX
+    const statusTopicPrefix = process.env.MQTT_STATUS_TOPIC_PREFIX ?? '/status/'
 
-    var logName = mqttName
+    assert.ok(mqttUsername)
+    assert.ok(mqttPassword)
+
+    let logName = mqttName
 
     if (_.isNil(logName)) {
         logName = process.env.name
@@ -30,29 +34,23 @@ exports.setupClient = function(connectedCallback, disconnectedCallback) {
         logName = process.env.LOGGING_NAME
     }
 
-    if (_.isNil(statusTopicPrefix)) {
-        statusTopicPrefix = '/status/'
-    }
-
     if (_.isNil(host)) {
         console.warn('MQTT_HOST not set, aborting')
         process.abort()
     }
 
-    var mqtt_options = {}
-
-    if (!_.isNil(mqttUsername)) {
-        mqtt_options.username = mqttUsername
-    }
-    if (!_.isNil(mqttPassword)) {
-        mqtt_options.password = mqttPassword
+    const mqtt_options: mqtt.IClientOptions = {
+        username: mqttUsername,
+        password: mqttPassword,
     }
 
-    if (!_.isNil(logName)) {
-        mqtt_options.will = {}
-        mqtt_options.will.topic = fix_name(statusTopicPrefix + logName)
-        mqtt_options.will.payload = '0'
-        mqtt_options.will.retain = true
+    if (logName !== undefined) {
+        mqtt_options.will = {
+            topic: fix_name(statusTopicPrefix + logName),
+            payload: '0',
+            retain: true,
+            qos: 0,
+        }
     }
 
     const client = mqtt.connect(host, mqtt_options)
@@ -74,7 +72,7 @@ exports.setupClient = function(connectedCallback, disconnectedCallback) {
     client.on('disconnect', () => {
         console.error('MQTT Disconnected, reconnecting')
 
-        client.connect(host)
+        client.reconnect()
 
         if (!_.isNil(disconnectedCallback)) {
             disconnectedCallback()

@@ -1,22 +1,21 @@
 #!/usr/bin/env node
 
-const Lgtv = require('lgtv2')
-const pkg = require('./package.json')
-const _ = require('lodash')
-const wol = require('wol')
-const mqtt_helpers = require('./homeautomation-js-lib/mqtt_helpers.js')
+import Lgtv from 'lgtv2'
+import _ from 'lodash'
+import wol from 'wol'
+import * as mqtt_helpers from './homeautomation-js-lib/mqtt_helpers'
 
-let tvOn
-let requestedTVOn = null
-let mqttConnected
-let tvConnected
-let lastError
-let foregroundApp = null
+let tvOn: boolean = false
+let requestedTVOn: boolean | null = null
+let mqttConnected: boolean = false
+let tvConnected: boolean = false
+let lastError: unknown
+let foregroundApp: unknown = null
 
 const tvMAC = process.env.TV_MAC
 const tvIP = process.env.TV_IP
 
-const mqttOptions = { retain: true, qos: 1 }
+const mqttOptions = { retain: true, qos: 1 } as const
 var topic_prefix = process.env.TOPIC_PREFIX
 
 if (_.isNil(topic_prefix)) {
@@ -25,7 +24,7 @@ if (_.isNil(topic_prefix)) {
 }
 
 
-console.info(pkg.name + ' ' + pkg.version + ' starting')
+console.info('lgtv2mqtt starting')
 
 const mqtt = mqtt_helpers.setupClient(function() {
     mqttConnected = true
@@ -45,7 +44,7 @@ const powerOff = function() {
     console.info('powerOff (isOn? ' + tvOn + ')')
     if (tvOn) {
         console.info('lg > ssap://system/turnOff')
-        lgtv.request('ssap://system/turnOff', null, null)
+        lgtv.request('ssap://system/turnOff')
         tvOn = false
         requestedTVOn = false
     }
@@ -62,7 +61,7 @@ mqtt.on('error', err => {
 
 mqtt.on('message', (inTopic, inPayload) => {
     var topic = inTopic
-    var payload = String(inPayload)
+    var payload = inPayload.toString('utf8')
     console.info('mqtt <' + topic + ':' + payload)
 
     if (topic[0] == '/') {
@@ -75,38 +74,45 @@ mqtt.on('message', (inTopic, inPayload) => {
         case 'set':
             switch (parts[2]) {
                 case 'toast':
-                    lgtv.request('ssap://system.notifications/createToast', { message: String(payload) })
+                    lgtv.request('ssap://system.notifications/createToast', { message: payload })
                     break
                 case 'volume':
                     lgtv.request('ssap://audio/setVolume', { volume: parseInt(payload, 10) })
                     break
                 case 'mute':
                     if (payload === 'true') {
-                        payload = true
+                        lgtv.request('ssap://audio/setMute', { mute: true })
                     }
                     if (payload === 'false') {
-                        payload = false
+                        lgtv.request('ssap://audio/setMute', { mute: false })
                     }
-                    lgtv.request('ssap://audio/setMute', { mute: Boolean(payload) })
                     break
 
                 case 'input':
-                    console.info('lg > ssap://tv/switchInput', { inputId: String(payload) })
-                    lgtv.request('ssap://tv/switchInput', { inputId: String(payload) })
+                    console.info('lg > ssap://tv/switchInput', { inputId: payload })
+                    lgtv.request('ssap://tv/switchInput', { inputId: payload })
                     break
 
                 case 'launch':
-                    lgtv.request('ssap://system.launcher/launch', { id: String(payload) })
+                    lgtv.request('ssap://system.launcher/launch', { id: payload })
                     break
 
                 case 'powerOn':
                     console.info('powerOn (isOn? ' + tvOn + ')')
+                    if (tvMAC === undefined) {
+                        return
+                    }
+
                     wol.wake(tvMAC, function(err, res) {
+                        if (err !== undefined) {
+                            console.error(`Failed to wake up LGTV via WOL`, err)
+                            return
+                        }
                         console.info('WOL: ' + res)
                         requestedTVOn = true
                         if (foregroundApp == null) {
                             console.info('lg > ssap://system/turnOff (to turn it on...)')
-                            lgtv.request('ssap://system/turnOff', null, null)
+                            lgtv.request('ssap://system/turnOff')
                         }
                     })
 
@@ -125,12 +131,12 @@ mqtt.on('message', (inTopic, inPayload) => {
                      * Probably also (but I don't have the facility to test them):
                      *    CHANNELUP, CHANNELDOWN
                      */
-                    sendPointerEvent('button', { name: (String(payload)).toUpperCase() })
+                    sendPointerEvent('button', { name: payload.toUpperCase() })
                     break
 
                 default:
                     console.info('lg > ' + 'ssap://' + inPayload)
-                    lgtv.request('ssap://' + inPayload, null, null)
+                    lgtv.request('ssap://' + inPayload)
             }
             break
         default:
@@ -219,7 +225,7 @@ lgtv.on('error', err => {
     lastError = str
 })
 
-const sendPointerEvent = function(type, payload) {
+const sendPointerEvent = function(type: string, payload: { name: string }) {
     lgtv.getSocket(
         'ssap://com.webos.service.networkinput/getPointerInputSocket',
         (err, sock) => {
