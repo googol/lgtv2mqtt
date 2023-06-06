@@ -12,7 +12,6 @@
     "noEmit": true,
     "importHelpers": true,
     "isolatedModules": true,
-    "verbatimModuleSyntax": true,
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
     "strict": true,
