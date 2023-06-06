@@ -7,7 +7,14 @@
     },
     "scripts": {
         "start": "nodemon --config nodemon.json",
-        "build": "tsc --noEmit false"
+        "build": "tsc --noEmit false",
+        "check": "run-p --aggregate-output --continue-on-error check:*",
+        "check:types": "tsc --noEmit true --project ./tsconfig.json",
+        "check:eslint": "eslint --ignore-path .gitignore --cache --cache-strategy content --max-warnings=0 .",
+        "check:prettier": "prettier --check --ignore-path .gitignore .",
+        "fix": "run-s --continue-on-error --print-name fix:*",
+        "fix:eslint": "npm run check:eslint -- --fix",
+        "fix:prettier": "npm run check:prettier -- --write"
     },
     "repository": {
         "type": "git",
@@ -45,6 +52,17 @@
         "@types/lgtv2": "^1.4.2",
         "@types/lodash": "^4.14.195",
         "@types/wol": "^1.0.1",
+        "@typescript-eslint/eslint-plugin": "^5.59.9",
+        "@typescript-eslint/parser": "^5.59.9",
+        "eslint": "^8.42.0",
+        "eslint-config-prettier": "^8.8.0",
+        "eslint-import-resolver-typescript": "^3.5.5",
+        "eslint-plugin-eslint-comments": "^3.2.0",
+        "eslint-plugin-import": "^2.27.5",
+        "eslint-plugin-sonarjs": "^0.19.0",
+        "eslint-plugin-unused-imports": "^2.0.0",
+        "npm-run-all": "^4.1.5",
+        "prettier": "^2.8.8",
         "typescript": "^5.1.3"
     }
 }

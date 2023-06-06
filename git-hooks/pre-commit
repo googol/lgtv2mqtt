@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+
+set -eEuo pipefail
+
+./node_modules/.bin/lint-staged
