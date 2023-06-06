@@ -2,14 +2,11 @@
     "name": "lgtv2mqtt",
     "version": "1.1.1",
     "description": "Interface between LG WebOS Smart TVs and MQTT",
-    "main": "index.js",
-    "preferGlobal": true,
-    "bin": "./index.js",
     "engines": {
         "node": "18.x"
     },
     "scripts": {
-        "start": "node dist/index.js",
+        "start": "nodemon --config nodemon.json",
         "build": "tsc --noEmit false",
         "test": "xo"
     },
@@ -40,6 +37,8 @@
         "lgtv2": "^1.6.3",
         "lodash": "^4.17.21",
         "mqtt": "^4.3.7",
+        "nodemon": "^2.0.22",
+        "ts-node": "^10.9.1",
         "tslib": "^2.5.3",
         "wol": "^1.0.7"
     },
