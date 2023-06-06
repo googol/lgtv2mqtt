@@ -36,16 +36,16 @@
     "homepage": "https://github.com/googol/lgtv2mqtt",
     "dependencies": {
         "homeautomation-js-lib": "https://github.com/terafin/homeautomation-js-lib.git",
-        "lgtv2": "latest",
-        "lodash": "latest",
-        "mqtt": "latest",
-        "wol": "latest"
+        "lgtv2": "^1.6.3",
+        "lodash": "^4.17.21",
+        "mqtt": "^4.3.7",
+        "wol": "^1.0.7"
     },
     "xo": {
         "space": 4
     },
     "devDependencies": {
-        "camo-purge": "latest",
-        "xo": "latest"
+        "camo-purge": "^1.0.2",
+        "xo": "^0.54.2"
     }
 }
