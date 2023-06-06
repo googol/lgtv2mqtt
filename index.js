@@ -1,12 +1,10 @@
 #!/usr/bin/env node
 
-const Mqtt = require('mqtt')
 const Lgtv = require('lgtv2')
 const pkg = require('./package.json')
 const _ = require('lodash')
-const logging = require('homeautomation-js-lib/logging.js')
 const wol = require('wol')
-const mqtt_helpers = require('homeautomation-js-lib/mqtt_helpers.js')
+const mqtt_helpers = require('./homeautomation-js-lib/mqtt_helpers.js')
 
 let tvOn
 let requestedTVOn = null
@@ -22,31 +20,31 @@ const mqttOptions = { retain: true, qos: 1 }
 var topic_prefix = process.env.TOPIC_PREFIX
 
 if (_.isNil(topic_prefix)) {
-    logging.error('TOPIC_PREFIX not set, not starting')
+    console.error('TOPIC_PREFIX not set, not starting')
     process.abort()
 }
 
 
-logging.info(pkg.name + ' ' + pkg.version + ' starting')
+console.info(pkg.name + ' ' + pkg.version + ' starting')
 
 const mqtt = mqtt_helpers.setupClient(function() {
     mqttConnected = true
 
     mqtt.publish(topic_prefix + '/connected', tvConnected ? '1' : '0', mqttOptions)
 
-    logging.info('mqtt subscribe', topic_prefix + '/set/#')
+    console.info('mqtt subscribe', topic_prefix + '/set/#')
     mqtt.subscribe(topic_prefix + '/set/#', { qos: 1 })
 }, function() {
     if (mqttConnected) {
         mqttConnected = false
-        logging.error('mqtt disconnected')
+        console.error('mqtt disconnected')
     }
 })
 
 const powerOff = function() {
-    logging.info('powerOff (isOn? ' + tvOn + ')')
+    console.info('powerOff (isOn? ' + tvOn + ')')
     if (tvOn) {
-        logging.info('lg > ssap://system/turnOff')
+        console.info('lg > ssap://system/turnOff')
         lgtv.request('ssap://system/turnOff', null, null)
         tvOn = false
         requestedTVOn = false
@@ -59,13 +57,13 @@ const lgtv = new Lgtv({
 })
 
 mqtt.on('error', err => {
-    logging.error('mqtt: ' + err)
+    console.error('mqtt: ' + err)
 })
 
 mqtt.on('message', (inTopic, inPayload) => {
     var topic = inTopic
     var payload = String(inPayload)
-    logging.info('mqtt <' + topic + ':' + payload)
+    console.info('mqtt <' + topic + ':' + payload)
 
     if (topic[0] == '/') {
         topic = topic.substring(1)
@@ -93,7 +91,7 @@ mqtt.on('message', (inTopic, inPayload) => {
                     break
 
                 case 'input':
-                    logging.info('lg > ssap://tv/switchInput', { inputId: String(payload) })
+                    console.info('lg > ssap://tv/switchInput', { inputId: String(payload) })
                     lgtv.request('ssap://tv/switchInput', { inputId: String(payload) })
                     break
 
@@ -102,12 +100,12 @@ mqtt.on('message', (inTopic, inPayload) => {
                     break
 
                 case 'powerOn':
-                    logging.info('powerOn (isOn? ' + tvOn + ')')
+                    console.info('powerOn (isOn? ' + tvOn + ')')
                     wol.wake(tvMAC, function(err, res) {
-                        logging.info('WOL: ' + res)
+                        console.info('WOL: ' + res)
                         requestedTVOn = true
                         if (foregroundApp == null) {
-                            logging.info('lg > ssap://system/turnOff (to turn it on...)')
+                            console.info('lg > ssap://system/turnOff (to turn it on...)')
                             lgtv.request('ssap://system/turnOff', null, null)
                         }
                     })
@@ -131,7 +129,7 @@ mqtt.on('message', (inTopic, inPayload) => {
                     break
 
                 default:
-                    logging.info('lg > ' + 'ssap://' + inPayload)
+                    console.info('lg > ' + 'ssap://' + inPayload)
                     lgtv.request('ssap://' + inPayload, null, null)
             }
             break
@@ -140,7 +138,7 @@ mqtt.on('message', (inTopic, inPayload) => {
 })
 
 lgtv.on('prompt', () => {
-    logging.info('authorization required')
+    console.info('authorization required')
 })
 
 lgtv.on('connect', () => {
@@ -148,11 +146,11 @@ lgtv.on('connect', () => {
     let channelsSubscribed = false
     lastError = null
     tvConnected = true
-    logging.info('tv connected')
+    console.info('tv connected')
     mqtt.publish(topic_prefix + '/connected', '1', mqttOptions)
 
     lgtv.subscribe('ssap://audio/getVolume', (err, res) => {
-        logging.info('audio/getVolume', err, res)
+        console.info('audio/getVolume', err, res)
         if (res.changed.indexOf('volume') !== -1) {
             mqtt.publish(topic_prefix + '/status/volume', String(res.volume), mqttOptions)
         }
@@ -162,7 +160,7 @@ lgtv.on('connect', () => {
     })
 
     lgtv.subscribe('ssap://com.webos.applicationManager/getForegroundAppInfo', (err, res) => {
-        logging.info('getForegroundAppInfo', err, res)
+        console.info('getForegroundAppInfo', err, res)
         mqtt.publish(topic_prefix + '/status/foregroundApp', String(res.appId), mqttOptions)
 
         if (!_.isNil(res.appId) && res.appId.length > 0) {
@@ -179,7 +177,7 @@ lgtv.on('connect', () => {
                 setTimeout(() => {
                     lgtv.subscribe('ssap://tv/getCurrentChannel', (err, res) => {
                         if (err) {
-                            logging.error(err)
+                            console.error(err)
                             return
                         }
                         const msg = {
@@ -194,7 +192,7 @@ lgtv.on('connect', () => {
     })
 
     lgtv.subscribe('ssap://tv/getExternalInputList', function(err, res) {
-        logging.info('getExternalInputList', err, res)
+        console.info('getExternalInputList', err, res)
     })
 
     if (requestedTVOn == false) {
@@ -203,20 +201,20 @@ lgtv.on('connect', () => {
 })
 
 lgtv.on('connecting', host => {
-    logging.info('tv trying to connect', host)
+    console.info('tv trying to connect', host)
 })
 
 lgtv.on('close', () => {
     lastError = null
     tvConnected = false
-    logging.info('tv disconnected')
+    console.info('tv disconnected')
     mqtt.publish(topic_prefix + '/connected', '0', mqttOptions)
 })
 
 lgtv.on('error', err => {
     const str = String(err)
     if (str !== lastError) {
-        logging.error('tv error: ' + str)
+        console.error('tv error: ' + str)
     }
     lastError = str
 })

@@ -35,7 +35,6 @@
     },
     "homepage": "https://github.com/googol/lgtv2mqtt",
     "dependencies": {
-        "homeautomation-js-lib": "https://github.com/terafin/homeautomation-js-lib.git",
         "lgtv2": "^1.6.3",
         "lodash": "^4.17.21",
         "mqtt": "^4.3.7",
