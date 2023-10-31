@@ -1,7 +1,9 @@
 import assert from 'node:assert'
+import fs from 'node:fs/promises'
 import Lgtv from 'lgtv2'
 import _ from 'lodash'
 import * as wol from 'wol'
+import {VaultTokenStorage} from './VaultTokenStorage'
 import * as mqtt_helpers from './homeautomation-js-lib/mqtt_helpers'
 
 main().catch((e) => {
@@ -29,6 +31,40 @@ async function main() {
     console.error('TOPIC_PREFIX not set, not starting')
     process.abort()
   }
+
+  const vaultAddressString = process.env.VAULT_ADDR
+  if (vaultAddressString === undefined) {
+    console.error('VAULT_ADDR not set, not starting')
+    process.abort()
+  }
+
+  const vaultAddress = new URL(vaultAddressString)
+
+  const vaultToken = process.env.VAULT_TOKEN
+  if (vaultToken === undefined) {
+    console.error('VAULT_TOKEN not set, not starting')
+    process.abort()
+  }
+
+  const vaultCaCertPath = process.env.VAULT_CA_CERT_PATH
+  if (vaultCaCertPath === undefined) {
+    console.error('VAULT_CA_CERT_PATH not set, not starting')
+    process.abort()
+  }
+
+  const vaultCaCert = await fs.readFile(vaultCaCertPath, 'utf-8')
+
+  console.log("Vault CA cert", vaultCaCert)
+
+  const vaultTokenStorage = new VaultTokenStorage(
+    vaultAddress,
+    vaultCaCert,
+    vaultToken,
+    'kv',
+    'lgtv',
+  )
+
+  const lgtvToken = await vaultTokenStorage.readToken()
 
   console.info('lgtv2mqtt starting')
 
@@ -66,6 +102,14 @@ async function main() {
   const lgtv = new Lgtv({
     url: `ws://${tvIP}:3000`,
     reconnect: 1000,
+    clientKey: lgtvToken,
+    saveKey: (key, callback) => {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument -- Bullshit typings for the callback
+      vaultTokenStorage.writeToken(key).then(
+        () => callback(),
+        (error) => callback(error),
+      )
+    },
   })
 
   mqtt.on('error', (err) => {
@@ -171,7 +215,11 @@ async function main() {
 
   function isVolumeUpdate(
     response: unknown,
-  ): response is { changed: readonly string[]; volume: number; muted: boolean } {
+  ): response is {
+    changed: readonly string[]
+    volume: number
+    muted: boolean
+  } {
     return (
       response !== undefined &&
       typeof response === 'object' &&
@@ -216,7 +264,9 @@ async function main() {
       }
     })
 
-    function isAppInfoResponse(response: unknown): response is { appId: string } {
+    function isAppInfoResponse(
+      response: unknown,
+    ): response is { appId: string } {
       return (
         response !== undefined &&
         typeof response === 'object' &&
