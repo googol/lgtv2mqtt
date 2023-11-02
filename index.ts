@@ -3,7 +3,7 @@ import fs from 'node:fs/promises'
 import Lgtv from 'lgtv2'
 import _ from 'lodash'
 import * as wol from 'wol'
-import {VaultTokenStorage} from './VaultTokenStorage'
+import { VaultTokenStorage } from './VaultTokenStorage'
 import * as mqtt_helpers from './homeautomation-js-lib/mqtt_helpers'
 
 main().catch((e) => {
@@ -54,7 +54,7 @@ async function main() {
 
   const vaultCaCert = await fs.readFile(vaultCaCertPath, 'utf-8')
 
-  console.log("Vault CA cert", vaultCaCert)
+  console.log('Vault CA cert', vaultCaCert)
 
   const vaultTokenStorage = new VaultTokenStorage(
     vaultAddress,
@@ -213,9 +213,7 @@ async function main() {
     console.info('authorization required')
   })
 
-  function isVolumeUpdate(
-    response: unknown,
-  ): response is {
+  function isVolumeUpdate(response: unknown): response is {
     changed: readonly string[]
     volume: number
     muted: boolean

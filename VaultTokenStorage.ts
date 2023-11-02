@@ -1,4 +1,4 @@
-import {Agent} from 'node:https'
+import { Agent } from 'node:https'
 import fetch from 'node-fetch'
 
 export class VaultTokenStorage {
