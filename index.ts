@@ -104,7 +104,6 @@ async function main() {
     reconnect: 1000,
     clientKey: lgtvToken,
     saveKey: (key, callback) => {
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument -- Bullshit typings for the callback
       vaultTokenStorage.writeToken(key).then(
         () => callback(),
         (error) => callback(error),
