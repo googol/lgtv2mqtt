@@ -7,13 +7,19 @@
  */
 
 import EventEmitter from 'node:events'
-import util from 'node:util'
 import { client as WebSocketClient } from 'websocket'
 import { pairing } from './pairing'
 import type {
   IClientConfig,
   connection as WebSocketConnection,
 } from 'websocket'
+
+type ParsedMessage = {
+  id: string
+  payload: unknown
+}
+
+const defaultUrl = 'ws://lgwebostv:3000'
 
 class SpecializedSocket {
   private readonly ws: WebSocketConnection
@@ -54,190 +60,148 @@ export type LGTVConfig = {
   wsconfig: IClientConfig
 }
 
-export type LGTVConstructor = {
-  (config: Partial<LGTVConfig>): LGTV_
-  new (config: Partial<LGTVConfig>): LGTV_
-}
-
 type LGTVCallback = (error: unknown, payload?: ParsedMessage['payload']) => void
 
-export type LGTV_ = {
-  clientKeyStorage: ClientKeyStorage
-  connect: (url: string) => void
-  connection: boolean
-  register: () => void
-  request: (uri: string, payload: unknown, cb: LGTVCallback | undefined) => void
-  subscribe: (
-    uri: string,
-    payload: unknown,
-    cb: LGTVCallback | undefined,
-  ) => void
-  send: (
-    type: string,
-    uri: string | undefined,
-    payload: unknown,
-    cb: LGTVCallback | undefined,
-  ) => void
-  getSocket: (
-    url: string,
-    cb: (err: unknown, socket?: SpecializedSocket) => void,
-  ) => void
-  disconnect: () => void
-} & EventEmitter
-
-type ParsedMessage = {
-  id: string
-  payload: unknown
-}
-
-const defaultUrl = 'ws://lgwebostv:3000'
-
-// @ts-expect-error -- legacy code
-export const LGTV_: LGTVConstructor = function (
-  this: LGTV_,
-  config: Partial<LGTVConfig> = {},
-): LGTV_ {
-  if (!(this instanceof LGTV_)) {
-    return new LGTV_(config)
-  }
-  // eslint-disable-next-line @typescript-eslint/no-this-alias -- legacy
-  const that = this
-
-  config.url = config.url ?? defaultUrl
-  config.timeout = config.timeout ?? 15000
-  config.reconnect =
-    typeof config.reconnect === 'undefined' ? 5000 : config.reconnect
-  config.wsconfig = config.wsconfig ?? {}
-  if (config.clientKeyStorage === undefined) {
-    throw new Error('No client key storage defined')
-  } else {
-    that.clientKeyStorage = config.clientKeyStorage
-  }
-
-  const client = new WebSocketClient(config.wsconfig)
-  let connection: undefined | WebSocketConnection
-  let isPaired = false
-  let autoReconnect = Boolean(config.reconnect)
-
-  const specializedSockets: Record<string, SpecializedSocket> = {}
-
-  const callbacks: Record<
+export class LGTV extends EventEmitter {
+  private readonly callbacks = new Map<
     string,
     (err: unknown, payload: ParsedMessage['payload']) => void
-  > = {}
-  let cidCount = 0
-  const cidPrefix = `0000000${Math.floor(Math.random() * 0xffffffff).toString(
-    16,
-  )}`.slice(-8)
+  >()
+  private readonly cidPrefix = `0000000${Math.floor(
+    Math.random() * 0xffffffff,
+  ).toString(16)}`.slice(-8)
+  private readonly client: WebSocketClient
+  private readonly clientKeyStorage: ClientKeyStorage
+  private readonly initialAutoReconnect: boolean
+  private readonly reconnect: number
+  private readonly specializedSockets = new Map<string, SpecializedSocket>()
+  private readonly timeout: number
+  private readonly url: string
+  private readonly wsconfig: IClientConfig
+  private autoReconnect: boolean
+  private cidCount = 0
+  private connection: undefined | WebSocketConnection
+  private isPaired = false
+  private lastError: string | undefined
 
-  function getCid() {
-    const cidNum = cidCount
-    cidCount += 1
-    const postfix = `000${cidNum.toString(16)}`.slice(-4)
-    return `${cidPrefix}${postfix}}`
-  }
+  constructor(config: Readonly<Partial<LGTVConfig>>) {
+    super()
 
-  let lastError: unknown
-
-  client.on('connectFailed', (error) => {
-    if (lastError !== error.toString()) {
-      that.emit('error', error)
+    if (config.clientKeyStorage === undefined) {
+      throw new Error('Client key store not defined')
+    } else {
+      this.clientKeyStorage = config.clientKeyStorage
     }
-    lastError = error.toString()
 
-    if (config.reconnect !== undefined) {
-      setTimeout(() => {
-        if (autoReconnect) {
-          // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- legacy
-          that.connect(config.url!)
-        }
-      }, config.reconnect)
-    }
-  })
+    this.url = config.url ?? defaultUrl
+    this.timeout = config.timeout ?? 15000
+    this.reconnect = config.reconnect ?? 5000
+    this.initialAutoReconnect = config.reconnect !== undefined
+    this.autoReconnect = this.initialAutoReconnect
+    this.wsconfig = config.wsconfig ?? {}
 
-  client.on('connect', (conn) => {
-    connection = conn
+    this.client = new WebSocketClient(this.wsconfig)
 
-    connection.on('error', (error: unknown) => {
-      that.emit('error', error)
-    })
+    this.client.on('connectFailed', (error) => {
+      this.emitErrorIfNotSameAsPrevious(error)
 
-    connection.on('close', (e: unknown) => {
-      connection = undefined
-
-      that.emit('close', e)
-      that.connection = false
-      if (config.reconnect !== undefined && config.reconnect !== 0) {
+      if (this.autoReconnect) {
         setTimeout(() => {
-          if (autoReconnect) {
-            // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- legacy
-            that.connect(config.url!)
+          if (this.autoReconnect) {
+            this.connect()
           }
         }, config.reconnect)
       }
     })
 
-    connection.on('message', (message) => {
-      that.emit('message', message)
-      let parsedMessage: ParsedMessage | undefined
-      if (message.type === 'utf8') {
-        if (message.utf8Data) {
-          try {
-            // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- legacy
-            parsedMessage = JSON.parse(message.utf8Data)
-          } catch (err) {
-            that.emit(
-              'error',
-              new Error(`JSON parse error ${message.utf8Data}`, { cause: err }),
-            )
-          }
+    this.client.on('connect', (connection) => {
+      connection.on('error', (error: unknown) => {
+        this.emit('error', error)
+      })
+
+      connection.on('close', (e: unknown) => {
+        this.connection = undefined
+
+        this.emit('close', e)
+        if (this.autoReconnect && this.reconnect !== 0) {
+          setTimeout(() => {
+            if (this.autoReconnect) {
+              this.connect()
+            }
+          }, this.reconnect)
         }
-        if (parsedMessage && callbacks[parsedMessage.id] !== undefined) {
-          /* eslint-disable @typescript-eslint/strict-boolean-expressions, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-explicit-any -- legacy */
-          const payload = parsedMessage as any
-          if (payload.subscribed) {
-            // Set changed array on first response to subscription
-            if (typeof payload.muted !== 'undefined') {
-              if (payload.changed !== undefined) {
-                payload.changed.push('muted')
-              } else {
-                payload.changed = ['muted']
+      })
+
+      connection.on('message', (message) => {
+        this.emit('message', message)
+        let parsedMessage: ParsedMessage | undefined
+        if (message.type === 'utf8') {
+          if (message.utf8Data) {
+            try {
+              // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- legacy
+              parsedMessage = JSON.parse(message.utf8Data)
+            } catch (err) {
+              this.emit(
+                'error',
+                new Error(`JSON parse error ${message.utf8Data}`, {
+                  cause: err,
+                }),
+              )
+            }
+          }
+          if (parsedMessage && this.callbacks.has(parsedMessage.id)) {
+            /* eslint-disable @typescript-eslint/strict-boolean-expressions, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-explicit-any -- legacy */
+            const payload = parsedMessage as any
+            if (payload.subscribed) {
+              // Set changed array on first response to subscription
+              if (typeof payload.muted !== 'undefined') {
+                if (payload.changed !== undefined) {
+                  payload.changed.push('muted')
+                } else {
+                  payload.changed = ['muted']
+                }
+              }
+              if (typeof payload.volume !== 'undefined') {
+                if (payload.changed) {
+                  payload.changed.push('volume')
+                } else {
+                  payload.changed = ['volume']
+                }
               }
             }
-            if (typeof payload.volume !== 'undefined') {
-              if (payload.changed) {
-                payload.changed.push('volume')
-              } else {
-                payload.changed = ['volume']
-              }
-            }
+            /* eslint-enable @typescript-eslint/strict-boolean-expressions, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-explicit-any */
+            this.callbacks.get(parsedMessage.id)?.(null, parsedMessage.payload)
           }
-          /* eslint-enable @typescript-eslint/strict-boolean-expressions, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-explicit-any */
-          callbacks[parsedMessage.id]?.(null, parsedMessage.payload)
+        } else {
+          this.emit(
+            'error',
+            new Error(`received non utf8 message ${message.toString()}`),
+          )
         }
-      } else {
-        that.emit(
-          'error',
-          new Error(`received non utf8 message ${message.toString()}`),
-        )
-      }
+      })
+
+      this.isPaired = false
+
+      this.register()
     })
+  }
 
-    isPaired = false
+  private emitErrorIfNotSameAsPrevious(error: { toString: () => string }) {
+    const thisError = error.toString()
+    if (this.lastError !== thisError) {
+      this.emit('error', error)
+    }
+    this.lastError = thisError
+  }
 
-    that.connection = false
-
-    that.register()
-  })
-
-  this.register = function () {
+  public register(): void {
     const clientKey = 'client-key'
-    that.clientKeyStorage
+    this.clientKeyStorage
       .readClientKey()
       .then((clientKeyValue) => {
         pairing[clientKey] = clientKeyValue
 
-        that.send(
+        this.send(
           'register',
           undefined,
           pairing,
@@ -247,42 +211,61 @@ export const LGTV_: LGTVConstructor = function (
               res !== undefined &&
               res !== null &&
               typeof res === 'object' &&
-              'client-key' in res
+              clientKey in res
             ) {
               const responseClientKey = res[clientKey]
               if (typeof responseClientKey === 'string') {
-                that.emit('connect')
-                that.connection = true
-                that.clientKeyStorage
+                this.emit('connect')
+                this.clientKeyStorage
                   .saveClientKey(responseClientKey)
                   .catch((error) => {
                     if (error !== undefined) {
-                      that.emit('error', err)
+                      this.emit('error', err)
                     }
                   })
-                isPaired = true
+                this.isPaired = true
               } else {
-                that.emit('prompt')
+                this.emit('prompt')
               }
             } else {
-              that.emit('error', err)
+              this.emit('error', err)
             }
           },
         )
       })
-      .catch((err) => that.emit('error', err))
+      .catch((err) => this.emit('error', err))
   }
 
-  this.request = function (uri, payload, cb) {
+  public request(
+    uri: string,
+    payload: unknown,
+    cb: LGTVCallback | undefined,
+  ): void {
     this.send('request', uri, payload, cb)
   }
 
-  this.subscribe = function (uri, payload, cb) {
+  public subscribe(
+    uri: string,
+    payload: unknown,
+    cb: LGTVCallback | undefined,
+  ): void {
     this.send('subscribe', uri, payload, cb)
   }
 
-  this.send = (type, uri, payload, cb) => {
-    const cid = getCid()
+  private getCid(): string {
+    const cidNum = this.cidCount
+    this.cidCount += 1
+    const postfix = `000${cidNum.toString(16)}`.slice(-4)
+    return `${this.cidPrefix}${postfix}}`
+  }
+
+  private send(
+    type: string,
+    uri: string | undefined,
+    payload: unknown,
+    cb: LGTVCallback | undefined,
+  ) {
+    const cid = this.getCid()
 
     const json = JSON.stringify({
       id: cid,
@@ -294,48 +277,49 @@ export const LGTV_: LGTVConstructor = function (
     if (typeof cb === 'function') {
       switch (type) {
         case 'request':
-          callbacks[cid] = function (err, res) {
+          this.callbacks.set(cid, (err, res) => {
             // Remove callback reference
-            // eslint-disable-next-line @typescript-eslint/no-dynamic-delete -- legacy
-            delete callbacks[cid]
+            this.callbacks.delete(cid)
             cb(err, res)
-          }
+          })
 
           // Set callback timeout
           setTimeout(() => {
-            if (callbacks[cid]) {
+            if (this.callbacks.has(cid)) {
               cb(new Error('timeout'))
             }
             // Remove callback reference
-            // eslint-disable-next-line @typescript-eslint/no-dynamic-delete -- legacy
-            delete callbacks[cid]
-          }, config.timeout)
+            this.callbacks.delete(cid)
+          }, this.timeout)
           break
 
         case 'subscribe':
-          callbacks[cid] = cb
+          this.callbacks.set(cid, cb)
           break
 
         case 'register':
-          callbacks[cid] = cb
+          this.callbacks.set(cid, cb)
           break
         default:
           throw new Error('unknown type')
       }
     }
-    connection?.send(json)
+    this.connection?.send(json)
   }
 
-  this.getSocket = (url, cb) => {
-    const x = specializedSockets[url]
+  public getSocket(
+    url: string,
+    cb: (err: unknown, socket: SpecializedSocket | undefined) => void,
+  ): void {
+    const x = this.specializedSockets.get(url)
     if (x !== undefined) {
       cb(null, x)
       return
     }
 
-    that.request(url, undefined, (err, data) => {
+    this.request(url, undefined, (err, data) => {
       if (err !== undefined) {
-        cb(err)
+        cb(err, undefined)
         return
       }
 
@@ -348,7 +332,7 @@ export const LGTV_: LGTVConstructor = function (
           typeof data.socketPath === 'string'
         )
       ) {
-        cb(new TypeError('Data was undefined'))
+        cb(new TypeError('Data was undefined'), undefined)
         return
       }
 
@@ -357,56 +341,50 @@ export const LGTV_: LGTVConstructor = function (
         .on('connect', (conn) => {
           conn
             .on('error', (error) => {
-              that.emit('error', error)
+              this.emit('error', error)
             })
             .on('close', () => {
-              // eslint-disable-next-line @typescript-eslint/no-dynamic-delete -- legacy
-              delete specializedSockets[url]
+              this.specializedSockets.delete(url)
             })
 
-          specializedSockets[url] = new SpecializedSocket(conn)
-          cb(null, specializedSockets[url])
+          const specializedSocket = new SpecializedSocket(conn)
+          this.specializedSockets.set(url, specializedSocket)
+          cb(null, specializedSocket)
         })
         .on('connectFailed', (error) => {
-          that.emit('error', error)
+          this.emit('error', error)
         })
 
       special.connect(data.socketPath)
     })
   }
 
-  /**
-   *      Connect to TV using a websocket url (eg "ws://192.168.0.100:3000")
-   *
-   */
-  this.connect = function (host) {
-    autoReconnect = Boolean(config.reconnect)
-
-    if (connection?.connected === true && !isPaired) {
-      that.register()
-    } else if (connection?.connected !== true) {
-      that.emit('connecting', host)
-      connection = undefined
-      client.connect(host)
+  public connect(): void {
+    this.autoReconnect = this.initialAutoReconnect
+    if (this.connection?.connected !== true) {
+      this.emit('connecting', this.url)
+      this.connection = undefined
+      this.client.connect(this.url)
+    } else if (!this.isPaired) {
+      this.register()
     }
   }
 
-  this.disconnect = function () {
+  public disconnect(): void {
+    this.autoReconnect = false
+
+    const { connection } = this
+    const sockets = Array.from(this.specializedSockets.values())
+
+    this.connection = undefined
+    this.specializedSockets.clear()
+
+    for (const socket of sockets) {
+      socket.close()
+    }
+
     if (connection !== undefined) {
       connection.close()
     }
-    autoReconnect = false
-
-    for (const socket of Object.values(specializedSockets)) {
-      socket.close()
-    }
   }
-
-  setTimeout(() => {
-    that.connect(config.url ?? defaultUrl)
-  }, 0)
-
-  return this
 }
-
-util.inherits(LGTV_, EventEmitter)

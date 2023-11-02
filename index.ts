@@ -4,7 +4,7 @@ import * as wol from 'wol'
 import { VaultTokenStorage } from './VaultTokenStorage'
 import { isNullish } from './helpers/isNullish'
 import * as mqtt_helpers from './homeautomation-js-lib/mqtt_helpers'
-import { LGTV_ } from './lgtv2'
+import { LGTV } from './lgtv2'
 
 main().catch((e) => {
   console.error('Main crashed', e)
@@ -96,7 +96,7 @@ async function main() {
     }
   }
 
-  const lgtv = new LGTV_({
+  const lgtv = new LGTV({
     url: `ws://${tvIP}:3000`,
     reconnect: 1000,
     clientKeyStorage: vaultTokenStorage,
