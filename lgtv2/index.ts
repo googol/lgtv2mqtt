@@ -55,13 +55,13 @@ export type LGTVConfig = {
 }
 
 export type LGTVConstructor = {
-  (config: Partial<LGTVConfig>): LGTV
-  new (config: Partial<LGTVConfig>): LGTV
+  (config: Partial<LGTVConfig>): LGTV_
+  new (config: Partial<LGTVConfig>): LGTV_
 }
 
 type LGTVCallback = (error: unknown, payload?: ParsedMessage['payload']) => void
 
-export type LGTV = {
+export type LGTV_ = {
   clientKeyStorage: ClientKeyStorage
   connect: (url: string) => void
   connection: boolean
@@ -93,12 +93,12 @@ type ParsedMessage = {
 const defaultUrl = 'ws://lgwebostv:3000'
 
 // @ts-expect-error -- legacy code
-export const LGTV: LGTVConstructor = function (
-  this: LGTV,
+export const LGTV_: LGTVConstructor = function (
+  this: LGTV_,
   config: Partial<LGTVConfig> = {},
-): LGTV {
-  if (!(this instanceof LGTV)) {
-    return new LGTV(config)
+): LGTV_ {
+  if (!(this instanceof LGTV_)) {
+    return new LGTV_(config)
   }
   // eslint-disable-next-line @typescript-eslint/no-this-alias -- legacy
   const that = this
@@ -409,4 +409,4 @@ export const LGTV: LGTVConstructor = function (
   return this
 }
 
-util.inherits(LGTV, EventEmitter)
+util.inherits(LGTV_, EventEmitter)
