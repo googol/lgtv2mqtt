@@ -40,7 +40,6 @@
   "homepage": "https://github.com/googol/lgtv2mqtt",
   "dependencies": {
     "@types/node": "^18.16.16",
-    "lodash": "^4.17.21",
     "mqtt": "^4.3.7",
     "node-fetch": "^2.7.0",
     "nodemon": "^2.0.22",
@@ -51,7 +50,6 @@
   },
   "devDependencies": {
     "@types/lgtv2": "^1.4.2",
-    "@types/lodash": "^4.14.195",
     "@types/node-fetch": "^2.6.8",
     "@types/websocket": "^1.0.8",
     "@types/wol": "^1.0.1",

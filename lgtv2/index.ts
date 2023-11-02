@@ -238,35 +238,45 @@ export const LGTV: LGTVConstructor = function (
 
   this.register = function () {
     const clientKey = 'client-key'
-    that.clientKeyStorage.readClientKey().then((clientKeyValue) => {
-      pairing[clientKey] = clientKeyValue
+    that.clientKeyStorage
+      .readClientKey()
+      .then((clientKeyValue) => {
+        pairing[clientKey] = clientKeyValue
 
-      that.send('register', undefined, pairing, (err: unknown, res: unknown) => {
-        if (
-          err === undefined &&
-          res !== undefined &&
-          res !== null &&
-          typeof res === 'object' &&
-          'client-key' in res
-        ) {
-          const responseClientKey = res[clientKey]
-          if (typeof responseClientKey === 'string') {
-            that.emit('connect')
-            that.connection = true
-            that.clientKeyStorage.saveClientKey(responseClientKey).catch((error) => {
-              if (error !== undefined) {
-                that.emit('error', err)
+        that.send(
+          'register',
+          undefined,
+          pairing,
+          (err: unknown, res: unknown) => {
+            if (
+              err === undefined &&
+              res !== undefined &&
+              res !== null &&
+              typeof res === 'object' &&
+              'client-key' in res
+            ) {
+              const responseClientKey = res[clientKey]
+              if (typeof responseClientKey === 'string') {
+                that.emit('connect')
+                that.connection = true
+                that.clientKeyStorage
+                  .saveClientKey(responseClientKey)
+                  .catch((error) => {
+                    if (error !== undefined) {
+                      that.emit('error', err)
+                    }
+                  })
+                isPaired = true
+              } else {
+                that.emit('prompt')
               }
-            })
-            isPaired = true
-          } else {
-            that.emit('prompt')
-          }
-        } else {
-          that.emit('error', err)
-        }
+            } else {
+              that.emit('error', err)
+            }
+          },
+        )
       })
-    }).catch((err) => that.emit('error', err))
+      .catch((err) => that.emit('error', err))
   }
 
   this.request = function (uri, payload, cb) {

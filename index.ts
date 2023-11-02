@@ -1,8 +1,8 @@
 import assert from 'node:assert'
 import fs from 'node:fs/promises'
-import _ from 'lodash'
 import * as wol from 'wol'
 import { VaultTokenStorage } from './VaultTokenStorage'
+import { isNullish } from './helpers/isNullish'
 import * as mqtt_helpers from './homeautomation-js-lib/mqtt_helpers'
 import { LGTV } from './lgtv2'
 
@@ -27,7 +27,7 @@ async function main() {
   const mqttOptions = { retain: true, qos: 1 } as const
   const topic_prefix = process.env.TOPIC_PREFIX
 
-  if (_.isNil(topic_prefix)) {
+  if (isNullish(topic_prefix)) {
     console.error('TOPIC_PREFIX not set, not starting')
     process.abort()
   }
@@ -306,7 +306,7 @@ async function main() {
           mqttOptions,
         )
 
-        if (!_.isNil(res.appId) && res.appId.length > 0) {
+        if (!isNullish(res.appId) && res.appId.length > 0) {
           tvOn = true
           foregroundApp = res.appId
         } else {
@@ -386,9 +386,5 @@ async function main() {
         }
       },
     )
-  }
-
-  function isNullish(value: unknown): value is null | undefined {
-    return value === undefined || value === null
   }
 }

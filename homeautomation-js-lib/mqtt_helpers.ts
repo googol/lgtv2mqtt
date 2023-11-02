@@ -2,8 +2,8 @@
 // the package was a dependency previously.
 // The file has been edited to change the logging to be plain console, and to avoid mutating the mqtt import, since that was not used by the project in general
 import * as assert from 'node:assert'
-import _ from 'lodash'
 import mqtt from 'mqtt'
+import { isNullish } from '../helpers/isNullish'
 
 function fix_name(str: string): string {
   return str
@@ -29,15 +29,15 @@ export function setupClient(
 
   let logName = mqttName
 
-  if (_.isNil(logName)) {
+  if (isNullish(logName)) {
     logName = process.env.name
   }
 
-  if (_.isNil(logName)) {
+  if (isNullish(logName)) {
     logName = process.env.LOGGING_NAME
   }
 
-  if (_.isNil(host)) {
+  if (isNullish(host)) {
     console.warn('MQTT_HOST not set, aborting')
     process.abort()
   }
@@ -63,11 +63,11 @@ export function setupClient(
   client.on('connect', () => {
     console.info('MQTT Connected')
 
-    if (!_.isNil(logName)) {
+    if (!isNullish(logName)) {
       client.publish(fix_name(`/status/${logName}`), '1', { retain: true })
     }
 
-    if (!_.isNil(connectedCallback)) {
+    if (!isNullish(connectedCallback)) {
       connectedCallback()
     }
   })
@@ -77,7 +77,7 @@ export function setupClient(
 
     client.reconnect()
 
-    if (!_.isNil(disconnectedCallback)) {
+    if (!isNullish(disconnectedCallback)) {
       disconnectedCallback()
     }
   })
