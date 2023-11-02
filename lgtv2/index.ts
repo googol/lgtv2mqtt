@@ -15,20 +15,14 @@ import type {
   connection as WebSocketConnection,
 } from 'websocket'
 
-type SpecializedSocketConstructor = new (
-  ws: WebSocketConnection,
-) => SpecializedSocket
-type SpecializedSocket = {
-  send: (type: string, payload: Record<string, string>) => void
-  close: () => void
-}
+class SpecializedSocket {
+  private readonly ws: WebSocketConnection
 
-// @ts-expect-error -- legacy code
-const SpecializedSocket: SpecializedSocketConstructor = function (
-  this: SpecializedSocket,
-  ws: WebSocketConnection,
-) {
-  this.send = function (type: string, payload: Record<string, string> = {}) {
+  constructor(ws: WebSocketConnection) {
+    this.ws = ws
+  }
+
+  send(type: string, payload: Record<string, string> = {}) {
     // The message should be key:value pairs, one per line,
     // with an extra blank line to terminate.
     const message = Object.entries(payload)
@@ -39,11 +33,11 @@ const SpecializedSocket: SpecializedSocketConstructor = function (
       .concat('\n')
       .join('\n')
 
-    ws.send(message)
+    this.ws.send(message)
   }
 
-  this.close = function () {
-    ws.close()
+  close() {
+    this.ws.close()
   }
 }
 
