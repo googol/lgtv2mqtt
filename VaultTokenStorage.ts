@@ -1,6 +1,6 @@
 import { Agent } from 'node:https'
 import fetch from 'node-fetch'
-import type {ClientKeyStorage} from './lgtv2'
+import type { ClientKeyStorage } from './lgtv2'
 
 export class VaultTokenStorage implements ClientKeyStorage {
   private readonly vaultToken: string
