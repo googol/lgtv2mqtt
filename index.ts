@@ -53,8 +53,6 @@ async function main() {
 
   const vaultCaCert = await fs.readFile(vaultCaCertPath, 'utf-8')
 
-  console.log('Vault CA cert', vaultCaCert)
-
   const vaultTokenStorage = new VaultTokenStorage(
     vaultAddress,
     vaultCaCert,
