@@ -7,10 +7,8 @@
  */
 
 import EventEmitter from 'node:events'
-import fs from 'node:fs'
 import util from 'node:util'
 import { client as WebSocketClient } from 'websocket'
-import { persistPath as ppath } from '../persist-path'
 import { pairing } from './pairing'
 import type {
   IClientConfig,
@@ -49,14 +47,17 @@ const SpecializedSocket: SpecializedSocketConstructor = function (
   }
 }
 
+export type ClientKeyStorage = {
+  readClientKey: () => Promise<string | undefined>
+  saveClientKey: (clientKey: string) => Promise<void>
+}
+
 export type LGTVConfig = {
+  clientKeyStorage: ClientKeyStorage
   url: string
   timeout: number
   reconnect: number
   wsconfig: IClientConfig
-  clientKey: string | undefined
-  keyFile: string
-  saveKey: (key: string, cb: (error: unknown) => void) => void
 }
 
 export type LGTVConstructor = {
@@ -67,8 +68,7 @@ export type LGTVConstructor = {
 type LGTVCallback = (error: unknown, payload?: ParsedMessage['payload']) => void
 
 export type LGTV = {
-  clientKey: string
-  saveKey: (key: string, cb: (error: unknown) => void) => void
+  clientKeyStorage: ClientKeyStorage
   connect: (url: string) => void
   connection: boolean
   register: () => void
@@ -114,33 +114,11 @@ export const LGTV: LGTVConstructor = function (
   config.reconnect =
     typeof config.reconnect === 'undefined' ? 5000 : config.reconnect
   config.wsconfig = config.wsconfig ?? {}
-  if (typeof config.clientKey === 'undefined') {
-    fs.mkdirSync(ppath('state', 'lgtv2'), { recursive: true })
-    config.keyFile =
-      config.keyFile ??
-      ppath(
-        'state',
-        `lgtv2/keyfile-${config.url.replace(
-          /[a-z]+:\/\/([0-9a-zA-Z-_.]+):\d+/u,
-          '$1',
-        )}`,
-      )
-    try {
-      that.clientKey = fs.readFileSync(config.keyFile).toString()
-    } catch (err) {
-      // no-op
-    }
+  if (config.clientKeyStorage === undefined) {
+    throw new Error('No client key storage defined')
   } else {
-    that.clientKey = config.clientKey
+    that.clientKeyStorage = config.clientKeyStorage
   }
-
-  that.saveKey =
-    config.saveKey ??
-    function (key, cb) {
-      that.clientKey = key
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- legacy
-      fs.writeFile(config.keyFile!, key, cb)
-    }
 
   const client = new WebSocketClient(config.wsconfig)
   let connection: undefined | WebSocketConnection
@@ -260,33 +238,35 @@ export const LGTV: LGTVConstructor = function (
 
   this.register = function () {
     const clientKey = 'client-key'
-    pairing[clientKey] = that.clientKey
+    that.clientKeyStorage.readClientKey().then((clientKeyValue) => {
+      pairing[clientKey] = clientKeyValue
 
-    that.send('register', undefined, pairing, (err: unknown, res: unknown) => {
-      if (
-        err === undefined &&
-        res !== undefined &&
-        res !== null &&
-        typeof res === 'object' &&
-        'client-key' in res
-      ) {
-        const responseClientKey = res[clientKey]
-        if (typeof responseClientKey === 'string') {
-          that.emit('connect')
-          that.connection = true
-          that.saveKey(responseClientKey, (error) => {
-            if (error !== undefined) {
-              that.emit('error', err)
-            }
-          })
-          isPaired = true
+      that.send('register', undefined, pairing, (err: unknown, res: unknown) => {
+        if (
+          err === undefined &&
+          res !== undefined &&
+          res !== null &&
+          typeof res === 'object' &&
+          'client-key' in res
+        ) {
+          const responseClientKey = res[clientKey]
+          if (typeof responseClientKey === 'string') {
+            that.emit('connect')
+            that.connection = true
+            that.clientKeyStorage.saveClientKey(responseClientKey).catch((error) => {
+              if (error !== undefined) {
+                that.emit('error', err)
+              }
+            })
+            isPaired = true
+          } else {
+            that.emit('prompt')
+          }
         } else {
-          that.emit('prompt')
+          that.emit('error', err)
         }
-      } else {
-        that.emit('error', err)
-      }
-    })
+      })
+    }).catch((err) => that.emit('error', err))
   }
 
   this.request = function (uri, payload, cb) {

@@ -1,7 +1,8 @@
 import { Agent } from 'node:https'
 import fetch from 'node-fetch'
+import type {ClientKeyStorage} from './lgtv2'
 
-export class VaultTokenStorage {
+export class VaultTokenStorage implements ClientKeyStorage {
   private readonly vaultToken: string
   private readonly secretUrl: URL
   private readonly httpsAgent: Agent
@@ -22,7 +23,7 @@ export class VaultTokenStorage {
     })
   }
 
-  public async readToken(): Promise<string | undefined> {
+  public async readClientKey(): Promise<string | undefined> {
     const response = await fetch(this.secretUrl, {
       headers: {
         'X-Vault-Token': this.vaultToken,
@@ -45,7 +46,7 @@ export class VaultTokenStorage {
     return responseBody.token
   }
 
-  public async writeToken(token: string): Promise<void> {
+  public async saveClientKey(token: string): Promise<void> {
     const response = await fetch(this.secretUrl, {
       method: 'POST',
       body: JSON.stringify({

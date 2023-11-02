@@ -63,8 +63,6 @@ async function main() {
     'lgtv',
   )
 
-  const lgtvToken = await vaultTokenStorage.readToken()
-
   console.info('lgtv2mqtt starting')
 
   const mqtt = mqtt_helpers.setupClient(
@@ -101,13 +99,7 @@ async function main() {
   const lgtv = new LGTV({
     url: `ws://${tvIP}:3000`,
     reconnect: 1000,
-    clientKey: lgtvToken,
-    saveKey: (key, callback) => {
-      vaultTokenStorage.writeToken(key).then(
-        () => callback(undefined),
-        (error) => callback(error),
-      )
-    },
+    clientKeyStorage: vaultTokenStorage,
   })
 
   mqtt.on('error', (err) => {
