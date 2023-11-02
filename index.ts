@@ -1,10 +1,10 @@
 import assert from 'node:assert'
 import fs from 'node:fs/promises'
-import Lgtv from 'lgtv2'
 import _ from 'lodash'
 import * as wol from 'wol'
 import { VaultTokenStorage } from './VaultTokenStorage'
 import * as mqtt_helpers from './homeautomation-js-lib/mqtt_helpers'
+import { LGTV } from './lgtv2'
 
 main().catch((e) => {
   console.error('Main crashed', e)
@@ -37,7 +37,6 @@ async function main() {
     console.error('VAULT_ADDR not set, not starting')
     process.abort()
   }
-
   const vaultAddress = new URL(vaultAddressString)
 
   const vaultToken = process.env.VAULT_TOKEN
@@ -93,19 +92,19 @@ async function main() {
     console.info(`powerOff (isOn? ${String(tvOn)})`)
     if (tvOn) {
       console.info('lg > ssap://system/turnOff')
-      lgtv.request('ssap://system/turnOff')
+      lgtv.request('ssap://system/turnOff', undefined, undefined)
       tvOn = false
       requestedTVOn = false
     }
   }
 
-  const lgtv = new Lgtv({
+  const lgtv = new LGTV({
     url: `ws://${tvIP}:3000`,
     reconnect: 1000,
     clientKey: lgtvToken,
     saveKey: (key, callback) => {
       vaultTokenStorage.writeToken(key).then(
-        () => callback(),
+        () => callback(undefined),
         (error) => callback(error),
       )
     },
@@ -132,31 +131,47 @@ async function main() {
         // eslint-disable-next-line sonarjs/no-nested-switch -- keeping this for now for the old code layout
         switch (parts[2]) {
           case 'toast':
-            lgtv.request('ssap://system.notifications/createToast', {
-              message: payload,
-            })
+            lgtv.request(
+              'ssap://system.notifications/createToast',
+              {
+                message: payload,
+              },
+              undefined,
+            )
             break
           case 'volume':
-            lgtv.request('ssap://audio/setVolume', {
-              volume: parseInt(payload, 10),
-            })
+            lgtv.request(
+              'ssap://audio/setVolume',
+              {
+                volume: parseInt(payload, 10),
+              },
+              undefined,
+            )
             break
           case 'mute':
             if (payload === 'true') {
-              lgtv.request('ssap://audio/setMute', { mute: true })
+              lgtv.request('ssap://audio/setMute', { mute: true }, undefined)
             }
             if (payload === 'false') {
-              lgtv.request('ssap://audio/setMute', { mute: false })
+              lgtv.request('ssap://audio/setMute', { mute: false }, undefined)
             }
             break
 
           case 'input':
             console.info('lg > ssap://tv/switchInput', { inputId: payload })
-            lgtv.request('ssap://tv/switchInput', { inputId: payload })
+            lgtv.request(
+              'ssap://tv/switchInput',
+              { inputId: payload },
+              undefined,
+            )
             break
 
           case 'launch':
-            lgtv.request('ssap://system.launcher/launch', { id: payload })
+            lgtv.request(
+              'ssap://system.launcher/launch',
+              { id: payload },
+              undefined,
+            )
             break
 
           case 'powerOn':
@@ -175,7 +190,7 @@ async function main() {
               requestedTVOn = true
               if (foregroundApp === null) {
                 console.info('lg > ssap://system/turnOff (to turn it on...)')
-                lgtv.request('ssap://system/turnOff')
+                lgtv.request('ssap://system/turnOff', undefined, undefined)
               }
             })
 
@@ -200,7 +215,7 @@ async function main() {
           default: {
             const inPayloadAsString = inPayload.toString()
             console.info(`lg > ssap://${inPayloadAsString}`)
-            lgtv.request(`ssap://${inPayloadAsString}`)
+            lgtv.request(`ssap://${inPayloadAsString}`, undefined, undefined)
           }
         }
         break
@@ -212,11 +227,9 @@ async function main() {
     console.info('authorization required')
   })
 
-  function isVolumeUpdate(response: unknown): response is {
-    changed: readonly string[]
-    volume: number
-    muted: boolean
-  } {
+  function isVolumeUpdate(
+    response: unknown,
+  ): response is { changed: string[]; volume: number; muted: boolean } {
     return (
       response !== undefined &&
       typeof response === 'object' &&
@@ -238,7 +251,7 @@ async function main() {
     console.info('tv connected')
     mqtt.publish(`${topic_prefix}/connected`, '1', mqttOptions)
 
-    lgtv.subscribe('ssap://audio/getVolume', (err, res) => {
+    lgtv.subscribe('ssap://audio/getVolume', undefined, (err, res) => {
       console.info('audio/getVolume', err, res)
       if (!isVolumeUpdate(res)) {
         console.error('Unexpected response from volume update', res)
@@ -287,6 +300,7 @@ async function main() {
 
     lgtv.subscribe(
       'ssap://com.webos.applicationManager/getForegroundAppInfo',
+      undefined,
       (err, res) => {
         console.info('getForegroundAppInfo', err, res)
         if (!isAppInfoResponse(res)) {
@@ -313,8 +327,9 @@ async function main() {
           setTimeout(() => {
             lgtv.subscribe(
               'ssap://tv/getCurrentChannel',
+              undefined,
               (channelErr, channelRes) => {
-                if (channelErr) {
+                if (!isNullish(channelErr)) {
                   console.error(channelErr)
                   return
                 }
@@ -342,7 +357,7 @@ async function main() {
       },
     )
 
-    lgtv.subscribe('ssap://tv/getExternalInputList', (err, res) => {
+    lgtv.subscribe('ssap://tv/getExternalInputList', undefined, (err, res) => {
       console.info('getExternalInputList', err, res)
     })
 
@@ -374,10 +389,14 @@ async function main() {
     lgtv.getSocket(
       'ssap://com.webos.service.networkinput/getPointerInputSocket',
       (err, sock) => {
-        if (!err) {
+        if (isNullish(err) && !isNullish(sock)) {
           sock.send(type, payload)
         }
       },
     )
+  }
+
+  function isNullish(value: unknown): value is null | undefined {
+    return value === undefined || value === null
   }
 }
