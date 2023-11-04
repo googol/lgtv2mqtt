@@ -84,8 +84,29 @@ async function main() {
     },
   )
 
+  const powerOn =  function() {
+    console.info(`power off`, { currentStatus: tvOn })
+    if (tvMAC === undefined) {
+      console.warn(`TV MAC not specified, not continuing`)
+      return
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-floating-promises -- The typings are a bit wrong here, since we are using a callback, the promise shouldn't be interesting
+    wol.wake(tvMAC, (err, res) => {
+      if (err) {
+        console.error(`Failed to wake up LGTV via WOL`, err)
+        return
+      }
+      console.info(`WOL: ${String(res)}`)
+      requestedTVOn = true
+      if (foregroundApp === null) {
+        console.info('lg > ssap://system/turnOff (to turn it on...)')
+        lgtv.request('ssap://system/turnOff', undefined, undefined)
+      }
+    })
+  }
   const powerOff = function () {
-    console.info(`powerOff (isOn? ${String(tvOn)})`)
+    console.info(`power off`, { currentStatus: tvOn })
     if (tvOn) {
       console.info('lg > ssap://system/turnOff')
       lgtv.request('ssap://system/turnOff', undefined, undefined)
@@ -165,24 +186,7 @@ async function main() {
             break
 
           case 'powerOn':
-            console.info(`powerOn (isOn? ${String(tvOn)})`)
-            if (tvMAC === undefined) {
-              return
-            }
-
-            // eslint-disable-next-line @typescript-eslint/no-floating-promises -- The typings are a bit wrong here, since we are using a callback, the promise shouldn't be interesting
-            wol.wake(tvMAC, (err, res) => {
-              if (err) {
-                console.error(`Failed to wake up LGTV via WOL`, err)
-                return
-              }
-              console.info(`WOL: ${String(res)}`)
-              requestedTVOn = true
-              if (foregroundApp === null) {
-                console.info('lg > ssap://system/turnOff (to turn it on...)')
-                lgtv.request('ssap://system/turnOff', undefined, undefined)
-              }
-            })
+            powerOn()
 
             break
 
