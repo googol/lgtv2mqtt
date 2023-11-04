@@ -45,9 +45,9 @@ async function main() {
     process.abort()
   }
 
-  const vaultCaCertPath = process.env.VAULT_CA_CERT_PATH
+  const vaultCaCertPath = process.env.VAULT_CACERT
   if (vaultCaCertPath === undefined) {
-    console.error('VAULT_CA_CERT_PATH not set, not starting')
+    console.error('VAULT_CACERT not set, not starting')
     process.abort()
   }
 
@@ -84,6 +84,27 @@ async function main() {
     },
   )
 
+  const setTvPowerStatus = (status: boolean) => {
+    tvOn = status
+    mqtt.publish(
+      `${topic_prefix}/tv_powered`,
+      status ? '1' : '0',
+      mqttOptions,
+    )
+  }
+
+  const setTvConnected = (status: boolean) => {
+    tvConnected = status
+
+    mqtt.publish(
+      `${topic_prefix}/connected`,
+      status ? '1' : '0',
+      mqttOptions,
+    )
+
+    setTvPowerStatus(false)
+  }
+
   const powerOn =  function() {
     console.info(`power off`, { currentStatus: tvOn })
     if (tvMAC === undefined) {
@@ -110,7 +131,7 @@ async function main() {
     if (tvOn) {
       console.info('lg > ssap://system/turnOff')
       lgtv.request('ssap://system/turnOff', undefined, undefined)
-      tvOn = false
+      setTvPowerStatus(false)
       requestedTVOn = false
     }
   }
@@ -238,12 +259,11 @@ async function main() {
   }
 
   lgtv.on('connect', () => {
-    tvOn = true
+    setTvPowerStatus(true)
     let channelsSubscribed = false
     lastError = null
-    tvConnected = true
-    console.info('tv connected')
-    mqtt.publish(`${topic_prefix}/connected`, '1', mqttOptions)
+    console.info('tv connected, tvConnected = true')
+    setTvConnected(true)
 
     lgtv.subscribe('ssap://audio/getVolume', undefined, (err, res) => {
       console.info('audio/getVolume', err, res)
@@ -309,10 +329,10 @@ async function main() {
         )
 
         if (!isNullish(res.appId) && res.appId.length > 0) {
-          tvOn = true
+          setTvPowerStatus(true)
           foregroundApp = res.appId
         } else {
-          tvOn = false
+          setTvPowerStatus(false)
           foregroundApp = null
         }
 
@@ -366,9 +386,7 @@ async function main() {
 
   lgtv.on('close', () => {
     lastError = null
-    tvConnected = false
-    console.info('tv disconnected')
-    mqtt.publish(`${topic_prefix}/connected`, '0', mqttOptions)
+    setTvConnected(false)
   })
 
   lgtv.on('error', (err) => {
@@ -389,4 +407,6 @@ async function main() {
       },
     )
   }
+
+  lgtv.connect()
 }

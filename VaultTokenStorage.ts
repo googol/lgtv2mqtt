@@ -32,18 +32,24 @@ export class VaultTokenStorage implements ClientKeyStorage {
     })
 
     if (response.status === 404) {
+      console.error('no client key found in vault')
       return undefined
     } else if (!response.ok) {
+      console.error('failed to read from vault')
       throw new Error('Failed to read from Vault', {
         cause: { status: response.status, body: await response.text() },
       })
     }
 
     const responseBody = (await response.json()) as {
-      token: string | undefined
+      data: {
+        data: {
+          token: string | undefined
+        },
+      },
     }
 
-    return responseBody.token
+    return responseBody.data.data.token
   }
 
   public async saveClientKey(token: string): Promise<void> {

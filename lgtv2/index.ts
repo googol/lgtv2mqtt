@@ -13,6 +13,7 @@ import type {
   IClientConfig,
   connection as WebSocketConnection,
 } from 'websocket'
+import {isNullish} from '../helpers/isNullish'
 
 type ParsedMessage = {
   id: string
@@ -103,6 +104,7 @@ export class LGTV extends EventEmitter {
     this.client = new WebSocketClient(this.wsconfig)
 
     this.client.on('connectFailed', (error) => {
+      console.log('lgtv client connecting failed')
       this.emitErrorIfNotSameAsPrevious(error)
 
       if (this.autoReconnect) {
@@ -115,7 +117,10 @@ export class LGTV extends EventEmitter {
     })
 
     this.client.on('connect', (connection) => {
+      this.connection = connection
+      console.log('lgtv client connected')
       connection.on('error', (error: unknown) => {
+        console.log('lgtv connection error', error)
         this.emit('error', error)
       })
 
@@ -207,7 +212,7 @@ export class LGTV extends EventEmitter {
           pairing,
           (err: unknown, res: unknown) => {
             if (
-              err === undefined &&
+              isNullish(err) &&
               res !== undefined &&
               res !== null &&
               typeof res === 'object' &&
@@ -233,7 +238,10 @@ export class LGTV extends EventEmitter {
           },
         )
       })
-      .catch((err) => this.emit('error', err))
+      .catch((err) => {
+        console.error('error from catch in register()', err)
+        this.emit('error', err)
+      })
   }
 
   public request(
@@ -359,8 +367,16 @@ export class LGTV extends EventEmitter {
     })
   }
 
+  public override emit(eventName: string | symbol, ...args: any[]): boolean {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-argument -- foo
+    console.log('lgtv.emit', eventName, ...args)
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-argument -- foo
+    return super.emit(eventName, ...args)
+  }
+
   public connect(): void {
     this.autoReconnect = this.initialAutoReconnect
+    console.log('lgtv.connect', { autoReconnect: this.autoReconnect, connected: this.connection?.connected, isPaired: this.isPaired })
     if (this.connection?.connected !== true) {
       this.emit('connecting', this.url)
       this.connection = undefined
